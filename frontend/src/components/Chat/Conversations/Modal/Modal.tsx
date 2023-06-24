@@ -11,6 +11,7 @@ import {
   Stack,
 } from "@chakra-ui/react";
 import { Session } from "next-auth";
+import { useRouter } from "next/router";
 import React, { useState } from "react";
 import { toast } from "react-hot-toast";
 import ConversationOperations from "../../../../graphql/operations/conversation";
@@ -39,6 +40,9 @@ const ConversationModal: React.FC<ModalProps> = ({
   const {
     user: { id: userId },
   } = session;
+
+  const router = useRouter();
+
   const [username, setUsername] = useState("");
   const [participants, setParticipants] = useState<Array<SearchedUser>>([]);
   const [searchUsers, { data, loading, error }] = useLazyQuery<
@@ -58,7 +62,24 @@ const ConversationModal: React.FC<ModalProps> = ({
           participantIds,
         },
       });
-      console.log("HERE IS DATA", data);
+
+      if (!data?.createConversation) {
+        throw new Error("Failed to create conversation");
+      }
+
+      const {
+        createConversation: { conversationId },
+      } = data;
+
+      router.push({ query: { conversationId } });
+
+      /**
+       * Clear state and close modal
+       * on successful creation
+       */
+      setParticipants([]);
+      setUsername("");
+      onClose();
     } catch (error: any) {
       console.log("onCreateConversation error", error);
       toast.error(error?.message);
