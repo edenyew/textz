@@ -47,5 +47,4 @@ const UserSearchList: React.FC<UserSearchListProps> = ({
     </>
   );
 };
-
 export default UserSearchList;

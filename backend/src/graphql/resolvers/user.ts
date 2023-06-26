@@ -1,6 +1,6 @@
 import { User } from "@prisma/client";
+import { GraphQLError } from "graphql";
 import { CreateUsernameResponse, GraphQLContext } from "../../util/types";
-import { ApolloError } from "apollo-server-core";
 
 const resolvers = {
   Query: {
@@ -13,7 +13,7 @@ const resolvers = {
       const { session, prisma } = context;
 
       if (!session?.user) {
-        throw new ApolloError("Not authorized");
+        throw new GraphQLError("Not authorized");
       }
 
       const {
@@ -30,19 +30,20 @@ const resolvers = {
             },
           },
         });
+
         return users;
       } catch (error: any) {
         console.log("searchUsers error", error);
-        throw new ApolloError(error?.message);
+        throw new GraphQLError(error?.message);
       }
     },
   },
   Mutation: {
-    createUsername: async function createUsername(
+    createUsername: async (
       _: any,
       args: { username: string },
       context: GraphQLContext
-    ): Promise<CreateUsernameResponse> {
+    ): Promise<CreateUsernameResponse> => {
       const { username } = args;
       const { session, prisma } = context;
 
@@ -52,7 +53,10 @@ const resolvers = {
         };
       }
 
+      // const { id: userId } = session.user;
       const { id: userId } = session.user;
+
+      console.log("HERE IS SESSION", session);
 
       try {
         /**
@@ -69,8 +73,9 @@ const resolvers = {
             error: "Username already taken. Try another",
           };
         }
+
         /**
-         * Update User
+         * Update user
          */
         await prisma.user.update({
           where: {

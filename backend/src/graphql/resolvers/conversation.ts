@@ -1,7 +1,13 @@
+import {
+  ConversationDeletedSubscriptionPayload,
+  ConversationPopulated,
+  ConversationUpdatedSubscriptionPayload,
+  GraphQLContext,
+} from "../../util/types";
+import { GraphQLError } from "graphql";
 import { Prisma } from "@prisma/client";
-import { ApolloError } from "apollo-server-core";
-import { ConversationPopulated, GraphQLContext } from "../../util/types";
 import { withFilter } from "graphql-subscriptions";
+import { userIsConversationParticipant } from "../../util/functions";
 
 const resolvers = {
   Query: {
@@ -13,7 +19,7 @@ const resolvers = {
       const { session, prisma } = context;
 
       if (!session?.user) {
-        throw new ApolloError("Not authorised");
+        throw new GraphQLError("Not authorized");
       }
 
       const {
@@ -26,13 +32,16 @@ const resolvers = {
          */
         const conversations = await prisma.conversation.findMany({
           /**
-           * Query seem to be unable to work....
+           * Below has been confirmed to be the correct
+           * query by the Prisma team. Has been confirmed
+           * that there is an issue on their end
+           * Issue seems specific to Mongo
            */
           // where: {
           //   participants: {
           //     some: {
           //       userId: {
-          //         equals: id,
+          //         equals: userId,
           //       },
           //     },
           //   },
@@ -49,7 +58,7 @@ const resolvers = {
         );
       } catch (error: any) {
         console.log("conversations error", error);
-        throw new ApolloError(error?.message);
+        throw new GraphQLError(error?.message);
       }
     },
   },
@@ -63,7 +72,7 @@ const resolvers = {
       const { participantIds } = args;
 
       if (!session?.user) {
-        throw new ApolloError("Not authorised");
+        throw new GraphQLError("Not authorized");
       }
 
       const {
@@ -85,7 +94,6 @@ const resolvers = {
           include: conversationPopulated,
         });
 
-        // emit a CONVERSATION_CREATED event using pubsub
         pubsub.publish("CONVERSATION_CREATED", {
           conversationCreated: conversation,
         });
@@ -95,8 +103,95 @@ const resolvers = {
         };
       } catch (error) {
         console.log("createConversation error", error);
-        throw new ApolloError("Error creating conversation");
+        throw new GraphQLError("Error creating conversation");
       }
+    },
+    markConversationAsRead: async function (
+      _: any,
+      args: { userId: string; conversationId: string },
+      context: GraphQLContext
+    ): Promise<boolean> {
+      const { session, prisma } = context;
+      const { userId, conversationId } = args;
+
+      if (!session?.user) {
+        throw new GraphQLError("Not authorized");
+      }
+
+      try {
+        const participant = await prisma.conversationParticipant.findFirst({
+          where: {
+            userId,
+            conversationId,
+          },
+        });
+
+        /**
+         * Should always exists but being safe
+         */
+        if (!participant) {
+          throw new GraphQLError("Participant entity not found");
+        }
+
+        await prisma.conversationParticipant.update({
+          where: {
+            id: participant.id,
+          },
+          data: {
+            hasSeenLatestMessage: true,
+          },
+        });
+
+        return true;
+      } catch (error: any) {
+        console.log("markConversationAsRead error", error);
+        throw new GraphQLError(error?.message);
+      }
+    },
+    deleteConversation: async function (
+      _: any,
+      args: { conversationId: string },
+      context: GraphQLContext
+    ): Promise<boolean> {
+      const { session, prisma, pubsub } = context;
+      const { conversationId } = args;
+
+      if (!session?.user) {
+        throw new GraphQLError("Not authorized");
+      }
+
+      try {
+        /**
+         * Delete conversation and all related entities
+         */
+        const [deletedConversation] = await prisma.$transaction([
+          prisma.conversation.delete({
+            where: {
+              id: conversationId,
+            },
+            include: conversationPopulated,
+          }),
+          prisma.conversationParticipant.deleteMany({
+            where: {
+              conversationId,
+            },
+          }),
+          prisma.message.deleteMany({
+            where: {
+              conversationId,
+            },
+          }),
+        ]);
+
+        pubsub.publish("CONVERSATION_DELETED", {
+          conversationDeleted: deletedConversation,
+        });
+      } catch (error: any) {
+        console.log("deleteConversation error", error);
+        throw new GraphQLError("Failed to delete conversation");
+      }
+
+      return true;
     },
   },
   Subscription: {
@@ -113,15 +208,77 @@ const resolvers = {
           context: GraphQLContext
         ) => {
           const { session } = context;
+
+          if (!session?.user) {
+            throw new GraphQLError("Not authorized");
+          }
+
           const {
             conversationCreated: { participants },
           } = payload;
 
-          const userIsParticipant = !!participants.find(
-            (p) => p.userId === session?.user?.id
+          const userIsParticipant = userIsConversationParticipant(
+            participants,
+            session.user.id
           );
 
           return userIsParticipant;
+        }
+      ),
+    },
+    conversationUpdated: {
+      subscribe: withFilter(
+        (_: any, __: any, context: GraphQLContext) => {
+          const { pubsub } = context;
+
+          return pubsub.asyncIterator(["CONVERSATION_UPDATED"]);
+        },
+        (
+          payload: ConversationUpdatedSubscriptionPayload,
+          _: any,
+          context: GraphQLContext
+        ) => {
+          const { session } = context;
+
+          if (!session?.user) {
+            throw new GraphQLError("Not authorized");
+          }
+
+          const { id: userId } = session.user;
+          const {
+            conversationUpdated: {
+              conversation: { participants },
+            },
+          } = payload;
+
+          return userIsConversationParticipant(participants, userId);
+        }
+      ),
+    },
+    conversationDeleted: {
+      subscribe: withFilter(
+        (_: any, __: any, context: GraphQLContext) => {
+          const { pubsub } = context;
+
+          return pubsub.asyncIterator(["CONVERSATION_DELETED"]);
+        },
+        (
+          payload: ConversationDeletedSubscriptionPayload,
+          _: any,
+          context: GraphQLContext
+        ) => {
+          const { session } = context;
+
+          if (!session?.user) {
+            throw new GraphQLError("Not authorized");
+          }
+
+          const { id: userId } = session.user;
+          const {
+            conversationDeleted: { participants },
+          } = payload;
+
+          return userIsConversationParticipant(participants, userId);
         }
       ),
     },

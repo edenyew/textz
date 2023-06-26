@@ -1,4 +1,4 @@
-import { useLazyQuery, useMutation } from "@apollo/client";
+import { useLazyQuery, useMutation, useQuery } from "@apollo/client";
 import {
   Button,
   Input,
@@ -9,22 +9,23 @@ import {
   ModalHeader,
   ModalOverlay,
   Stack,
+  Text,
 } from "@chakra-ui/react";
-import { Session } from "next-auth";
-import { useRouter } from "next/router";
 import React, { useState } from "react";
-import { toast } from "react-hot-toast";
-import ConversationOperations from "../../../../graphql/operations/conversation";
+import toast from "react-hot-toast";
 import UserOperations from "../../../../graphql/operations/user";
+import ConversationOperations from "../../../../graphql/operations/conversation";
 import {
   CreateConversationData,
   CreateConversationInput,
+  SearchedUser,
   SearchUsersData,
   SearchUsersInput,
-  SearchedUser,
 } from "../../../../util/types";
 import Participants from "./Participants";
 import UserSearchList from "./UserSearchList";
+import { Session } from "next-auth";
+import { useRouter } from "next/router";
 
 interface ModalProps {
   session: Session;
@@ -45,17 +46,18 @@ const ConversationModal: React.FC<ModalProps> = ({
 
   const [username, setUsername] = useState("");
   const [participants, setParticipants] = useState<Array<SearchedUser>>([]);
-  const [searchUsers, { data, loading, error }] = useLazyQuery<
+  const [searchUsers, { data, error, loading }] = useLazyQuery<
     SearchUsersData,
     SearchUsersInput
   >(UserOperations.Queries.searchUsers);
   const [createConversation, { loading: createConversationLoading }] =
     useMutation<CreateConversationData, CreateConversationInput>(
-      ConversationOperations.Mutation.createConversation
+      ConversationOperations.Mutations.createConversation
     );
 
   const onCreateConversation = async () => {
     const participantIds = [userId, ...participants.map((p) => p.id)];
+
     try {
       const { data } = await createConversation({
         variables: {
@@ -112,14 +114,10 @@ const ConversationModal: React.FC<ModalProps> = ({
               <Stack spacing={4}>
                 <Input
                   placeholder="Enter a username"
-                  onChange={(event) => setUsername(event.target.value)}
                   value={username}
+                  onChange={(event) => setUsername(event.target.value)}
                 />
-                <Button
-                  type="submit"
-                  isDisabled={!username}
-                  isLoading={loading}
-                >
+                <Button type="submit" disabled={!username} isLoading={loading}>
                   Search
                 </Button>
               </Stack>
@@ -154,5 +152,4 @@ const ConversationModal: React.FC<ModalProps> = ({
     </>
   );
 };
-
 export default ConversationModal;

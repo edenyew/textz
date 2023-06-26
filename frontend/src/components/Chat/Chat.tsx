@@ -1,8 +1,7 @@
-import { Button, Flex } from "@chakra-ui/react";
-import { signOut } from "next-auth/react";
+import { Box, Flex } from "@chakra-ui/react";
+import { Session } from "next-auth";
 import ConversationsWrapper from "./Conversations/ConversationsWrapper";
 import FeedWrapper from "./Feed/FeedWrapper";
-import { Session } from "next-auth";
 
 interface ChatProps {
   session: Session;

@@ -13,7 +13,7 @@ export default {
   },
   Mutations: {
     createUsername: gql`
-      mutation createUsername($username: String!) {
+      mutation CreateUsername($username: String!) {
         createUsername(username: $username) {
           success
           error

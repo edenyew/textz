@@ -33,5 +33,4 @@ const Participants: React.FC<ParticipantsProps> = ({
     </Flex>
   );
 };
-
 export default Participants;

@@ -11,7 +11,7 @@ import {
 import { formatRelative } from "date-fns";
 import enUS from "date-fns/locale/en-US";
 import React, { useState } from "react";
-import { GoPrimitiveDot } from "react-icons/go";
+import { GoDotFill } from "react-icons/go";
 import { MdDeleteOutline } from "react-icons/md";
 import { BiLogOut } from "react-icons/bi";
 import { AiOutlineEdit } from "react-icons/ai";
@@ -30,8 +30,8 @@ interface ConversationItemProps {
   conversation: ConversationPopulated;
   onClick: () => void;
   isSelected: boolean;
-  //   hasSeenLatestMessage: boolean | undefined;
-  //   onDeleteConversation: (conversationId: string) => void;
+  hasSeenLatestMessage: boolean | undefined;
+  onDeleteConversation: (conversationId: string) => void;
   //   onEditConversation?: () => void;
   //   hasSeenLatestMessage?: boolean;
   //   selectedConversationId?: string;
@@ -43,10 +43,10 @@ const ConversationItem: React.FC<ConversationItemProps> = ({
   conversation,
   onClick,
   isSelected,
+  hasSeenLatestMessage,
+  onDeleteConversation,
   //   selectedConversationId,
-  //   hasSeenLatestMessage,
   //   onEditConversation,
-  //   onDeleteConversation,
   //   onLeaveConversation,
 }) => {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -91,7 +91,7 @@ const ConversationItem: React.FC<ConversationItemProps> = ({
             icon={<MdDeleteOutline fontSize={20} />}
             onClick={(event) => {
               event.stopPropagation();
-              // onDeleteConversation(conversation.id);
+              onDeleteConversation(conversation.id);
             }}
             bg="#2d2d2d"
             _hover={{ bg: "whiteAlpha.300" }}
@@ -122,9 +122,9 @@ const ConversationItem: React.FC<ConversationItemProps> = ({
         </MenuList>
       </Menu>
       <Flex position="absolute" left="-6px">
-        {/* {hasSeenLatestMessage === false && (
-          <GoPrimitiveDot fontSize={18} color="#6B46C1" />
-        )} */}
+        {hasSeenLatestMessage === false && (
+          <GoDotFill fontSize={18} color="#6B46C1" />
+        )}
       </Flex>
       <Avatar />
       <Flex justify="space-between" width="80%" height="100%">
